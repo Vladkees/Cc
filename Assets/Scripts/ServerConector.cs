@@ -6,10 +6,10 @@ using UnityEngine.Networking;
 
 public class ServerConnector : MonoBehaviour
 {
-    private string register = "https://e41e-93-170-117-28.ngrok-free.app/game_server/register.php";
-    private string lobby = "https://e41e-93-170-117-28.ngrok-free.app/game_server/start_game.php";
-    private string move = " https://e41e-93-170-117-28.ngrok-free.app/game_server/submit_move.php";
-    private string results = "https://e41e-93-170-117-28.ngrok-free.app/game_server/get_results.php";
+    private string register = "https://41cd-93-170-117-28.ngrok-free.app/game_server/register.php";
+    private string lobby = "https://41cd-93-170-117-28.ngrok-free.app/game_server/start_game.php";
+    private string move = " https://41cd-93-170-117-28.ngrok-free.app/game_server/submit_move.php";
+    private string results = "https://41cd-93-170-117-28.ngrok-free.app/game_server/get_results.php";
 
     public int ID;
     public Dictionary<string, int> playerScores = new Dictionary<string, int>();
