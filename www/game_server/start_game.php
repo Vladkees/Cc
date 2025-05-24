@@ -7,7 +7,7 @@ $db_user = 'root';
 $db_pass = '';
 $db_name = 'game_server';
 $min_players = 2;
-$wait_seconds = 15;
+$wait_seconds = 60;
 
 $conn = new mysqli($db_host, $db_user, $db_pass, $db_name);
 if ($conn->connect_error) {
