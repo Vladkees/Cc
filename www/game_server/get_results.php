@@ -45,13 +45,12 @@ if ($game_state['is_round_active']) {
 
 // 3. Обчислюємо результати (тільки при першому запиті)
 if ($game_state['results_sent'] && $game_state['results_received'] == 0) {
-   $result = $conn->query("
-    SELECT pm.*, p.username 
-    FROM player_moves pm
-    JOIN players p ON pm.player_id = p.id
-    WHERE round = ".$game_state['current_round']."
-");
-
+    $result = $conn->query("
+        SELECT pm.*, p.username 
+        FROM player_moves pm
+        JOIN players p ON pm.player_id = p.id
+        WHERE round = ".$game_state['current_round']."
+    ");
 
     $players = [];
     while ($row = $result->fetch_assoc()) {
@@ -67,15 +66,20 @@ if ($game_state['results_sent'] && $game_state['results_received'] == 0) {
         ];
     }
 
-    // Логіка розрахунку балів
+    // Логіка підрахунку очок
     $planets = ['kronus', 'lyrion', 'mystara', 'eclipsia', 'fiora'];
     $player_ids = array_keys($players);
     $total_players = count($player_ids);
 
+    $scores = [];
+    foreach ($player_ids as $pid) {
+        $scores[$pid] = 0;
+    }
+
     for ($i = 0; $i < $total_players; $i++) {
         for ($j = $i + 1; $j < $total_players; $j++) {
-            $playerA = &$players[$player_ids[$i]];
-            $playerB = &$players[$player_ids[$j]];
+            $playerA = $players[$player_ids[$i]];
+            $playerB = $players[$player_ids[$j]];
 
             $a_wins = 0;
             $b_wins = 0;
@@ -89,23 +93,23 @@ if ($game_state['results_sent'] && $game_state['results_received'] == 0) {
             }
 
             if ($a_wins > $b_wins) {
-                $playerA['score'] += 2;
+                $scores[$playerA['player_id']] += 2;
             } elseif ($a_wins < $b_wins) {
-                $playerB['score'] += 2;
+                $scores[$playerB['player_id']] += 2;
             } else {
-                $playerA['score'] += 1;
-                $playerB['score'] += 1;
+                $scores[$playerA['player_id']] += 1;
+                $scores[$playerB['player_id']] += 1;
             }
         }
     }
-  // Оновлюємо total_score в БД та додаємо його до масиву
+
+    // Додаємо очки до масиву players
     foreach ($players as &$player) {
         $player_id = $player['player_id'];
-        $score = $player['score'];
+        $player['score'] = $scores[$player_id];
 
         // Оновлюємо в БД
-        $conn->query("UPDATE players SET total_score = total_score + $score WHERE id = $player_id");
-
+        $conn->query("UPDATE players SET total_score = total_score + {$player['score']} WHERE id = $player_id");
 
         // Отримуємо оновлений total_score з БД
         $res = $conn->query("SELECT total_score FROM players WHERE id = $player_id")->fetch_assoc();
@@ -128,7 +132,7 @@ foreach ($players as $player) {
         'eclipsia' => $player['eclipsia'],
         'fiora' => $player['fiora'],
         'round_score' => $player['score'],
-        'total_score' => $player['total_score'] // Можна додати загальний рахунок із БД
+        'total_score' => $player['total_score']
     ];
 }
 
@@ -145,7 +149,6 @@ if ($results_received >= $total_players) {
     unlink("round_{$game_state['current_round']}_results.json");
 
     if ($game_state['current_round'] < 5) {
-        // Продовжуємо гру
         $new_round = $game_state['current_round'] + 1;
         $conn->query("UPDATE game_state SET 
             current_round = $new_round,
@@ -154,21 +157,19 @@ if ($results_received >= $total_players) {
             results_received = 0");
         $is_new_round = true;
     } else {
-        // Кінець гри — очищення всіх таблиць
         $conn->query("DELETE FROM games");
         $conn->query("DELETE FROM game_sessions");
         $conn->query("DELETE FROM game_state");
         $conn->query("DELETE FROM player_moves");
         $conn->query("DELETE FROM players");
-
-        // Якщо залишилась таблиця game_sessions з позначкою started = 1
         $conn->query("UPDATE game_sessions SET started = 0 WHERE started = 1");
 
         $is_new_round = false;
         $new_round = null;
     }
 }
-// 7. Формуємо відповідь
+
+// 7. Відповідь
 echo json_encode([
     'success' => true,
     'round_completed' => true,
@@ -178,6 +179,5 @@ echo json_encode([
     'new_round' => $is_new_round ? $new_round : null,
     'timestamp' => time()
 ]);
- 
 
 $conn->close();
