@@ -3,8 +3,7 @@ using UnityEngine.UI;
 using UnityEngine.Rendering.Universal;
 using TMPro;
 using System;
-using System.Collections;
-
+using System.Collections; 
 public enum GameState
 {
     EnterName,
@@ -33,20 +32,28 @@ public class GameManager : MonoBehaviour
 
     private string playerName;
 
-    private void Start()
-    {
-        submitButton.onClick.AddListener(OnSubmitName);
-        SetState(GameState.EnterName);
+[SerializeField] private AudioSource backgroundMusic;
+  private void Start()
+{
+    submitButton.onClick.AddListener(OnSubmitName);
+    SetState(GameState.EnterName);
 
-        foreach (var input in droneInputs)
-        {
-            input.onValueChanged.AddListener(_ =>
-            {
-                if (currentState == GameState.RoundInProgress)
-                    validator.ValidateInputs();
-            });
-        }
+    // Відтворення музики
+    if (backgroundMusic != null && !backgroundMusic.isPlaying)
+    {
+        backgroundMusic.loop = true;
+        backgroundMusic.Play();
     }
+
+    foreach (var input in droneInputs)
+    {
+        input.onValueChanged.AddListener(_ =>
+        {
+            if (currentState == GameState.RoundInProgress)
+                validator.ValidateInputs();
+        });
+    }
+}
 
     public void SetState(GameState newState)
     {
