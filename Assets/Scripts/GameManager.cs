@@ -31,19 +31,13 @@ public class GameManager : MonoBehaviour
     public DroneOrbitController[] droneControllers;
 
     private string playerName;
-
-[SerializeField] private AudioSource backgroundMusic;
+ 
   private void Start()
 {
     submitButton.onClick.AddListener(OnSubmitName);
     SetState(GameState.EnterName);
 
-    // Відтворення музики
-    if (backgroundMusic != null && !backgroundMusic.isPlaying)
-    {
-        backgroundMusic.loop = true;
-        backgroundMusic.Play();
-    }
+    
 
     foreach (var input in droneInputs)
     {
