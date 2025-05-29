@@ -16,6 +16,8 @@ public class ServerConnector : MonoBehaviour
     public GameManager gameManager;
     public ScoreDisplay scoreDisplay;
 
+    private bool moveSubmitted = false;
+
     public void RegisterPlayer(string username, Action<bool> onComplete)
     {
         StartCoroutine(RegisterCoroutine(username, onComplete));
@@ -38,7 +40,6 @@ public class ServerConnector : MonoBehaviour
             string responseText = request.downloadHandler.text;
             Debug.Log("Відповідь сервера: " + responseText);
 
-            // Парсимо поле error
             ErrorResponse errorResponse = JsonUtility.FromJson<ErrorResponse>(responseText);
 
             if (!string.IsNullOrEmpty(errorResponse.error))
@@ -48,7 +49,6 @@ public class ServerConnector : MonoBehaviour
             }
             else
             {
-                // 🔍 Знаходимо player_id за допомогою регулярного виразу
                 System.Text.RegularExpressions.Match match = System.Text.RegularExpressions.Regex.Match(responseText, "\"player_id\"\\s*:\\s*(\\d+)");
                 if (match.Success)
                 {
@@ -73,7 +73,6 @@ public class ServerConnector : MonoBehaviour
         }
     }
 
-
     public void CheckStatus()
     {
         StartCoroutine(GetStatusCoroutine());
@@ -90,14 +89,12 @@ public class ServerConnector : MonoBehaviour
                 string json = request.downloadHandler.text;
                 Debug.Log("Відповідь сервера: " + json);
 
-                // Розбираємо JSON
                 GameStatusResponse response = JsonUtility.FromJson<GameStatusResponse>(json);
 
                 if (response != null)
                 {
                     Debug.Log("Status: " + response.status);
 
-                    // Тут можна щось робити з цим статусом, наприклад:
                     if (response.status == "waiting")
                     {
                         Debug.Log("Гра ще не почалася");
@@ -203,10 +200,12 @@ public class ServerConnector : MonoBehaviour
 
         string json = JsonUtility.ToJson(data);
         Debug.Log("JSON що надсилається: " + json);
-        StartCoroutine(PostJsonRequest(move, json));
+        StartCoroutine(PostJsonRequest(move, json, () => {
+            moveSubmitted = true;
+        }));
     }
 
-    private IEnumerator PostJsonRequest(string url, string json)
+    private IEnumerator PostJsonRequest(string url, string json, Action onSuccess = null)
     {
         UnityWebRequest request = new UnityWebRequest(url, "POST");
         byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(json);
@@ -220,6 +219,7 @@ public class ServerConnector : MonoBehaviour
         if (request.result == UnityWebRequest.Result.Success)
         {
             Debug.Log("Успішно надіслано: " + request.downloadHandler.text);
+            onSuccess?.Invoke();
         }
         else
         {
@@ -229,7 +229,14 @@ public class ServerConnector : MonoBehaviour
 
     public void GetResults()
     {
-        StartCoroutine(CheckUntilSuccess());
+        if (moveSubmitted)
+        {
+            StartCoroutine(CheckUntilSuccess());
+        }
+        else
+        {
+            Debug.LogWarning("Спочатку потрібно відправити дані про дрони");
+        }
     }
 
     IEnumerator CheckUntilSuccess()
@@ -249,8 +256,6 @@ public class ServerConnector : MonoBehaviour
             }
 
             string json = request.downloadHandler.text;
-
-            // Спроба розпарсити, навіть якщо success == false
             Debug.Log("Отриманий JSON: " + json);
             RoundResponseWrapper wrapper = JsonUtility.FromJson<RoundResponseWrapper>("{\"wrapper\":" + json + "}");
             RoundResponse response = wrapper.wrapper;
@@ -264,7 +269,6 @@ public class ServerConnector : MonoBehaviour
                 continue;
             }
 
-            // Якщо success == true: обробити результати
             Debug.Log("Раунд завершено. Отримуємо результати...");
 
             playerScores.Clear();
@@ -289,6 +293,7 @@ public class ServerConnector : MonoBehaviour
             else
             {
                 gameManager.SetState(GameState.RoundInProgress);
+                moveSubmitted = false; // Скидаємо після отримання результатів
             }
         }
     }
@@ -309,7 +314,7 @@ public class ServerConnector : MonoBehaviour
     public class GameStatusResponse
     {
         public string status;
-        public int? time_left; // nullable, бо іноді його немає
+        public int? time_left;
         public string message;
     }
 
