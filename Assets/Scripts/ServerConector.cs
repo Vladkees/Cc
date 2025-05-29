@@ -188,8 +188,10 @@ public class ServerConnector : MonoBehaviour
             yield return new WaitForSeconds(1f);
         }
     }
-
-    public void SendDroneDistribution(int playerId, int kronus, int lyrion, int mystara, int eclipsia, int fiora)
+public void SendDroneDistribution(int playerId, int kronus, int lyrion, int mystara, int eclipsia, int fiora)
+{
+    // Додамо перевірку, чи гра в правильному стані для відправки даних
+    if (gameManager != null && gameManager.currentState == GameState.DistributingDrones)
     {
         DroneDistributionData data = new DroneDistributionData
         {
@@ -203,35 +205,52 @@ public class ServerConnector : MonoBehaviour
 
         string json = JsonUtility.ToJson(data);
         Debug.Log("JSON що надсилається: " + json);
-        StartCoroutine(PostJsonRequest(move, json));
+        StartCoroutine(PostJsonRequest(move, json, () => {
+            // Після успішної відправки змінюємо стан
+            if (gameManager != null)
+            {
+                gameManager.SetState(GameState.WaitingForResults);
+            }
+        }));
     }
-
-    private IEnumerator PostJsonRequest(string url, string json)
+    else
     {
-        UnityWebRequest request = new UnityWebRequest(url, "POST");
-        byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(json);
-
-        request.uploadHandler = new UploadHandlerRaw(bodyRaw);
-        request.downloadHandler = new DownloadHandlerBuffer();
-        request.SetRequestHeader("Content-Type", "application/json");
-
-        yield return request.SendWebRequest();
-
-        if (request.result == UnityWebRequest.Result.Success)
-        {
-            Debug.Log("Успішно надіслано: " + request.downloadHandler.text);
-        }
-        else
-        {
-            Debug.LogError("Помилка запиту: " + request.error);
-        }
+        Debug.LogWarning("Спроба відправити дані в неправильному стані гри");
     }
+}
+    private IEnumerator PostJsonRequest(string url, string json, Action onSuccess = null)
+{
+    UnityWebRequest request = new UnityWebRequest(url, "POST");
+    byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(json);
 
-    public void GetResults()
+    request.uploadHandler = new UploadHandlerRaw(bodyRaw);
+    request.downloadHandler = new DownloadHandlerBuffer();
+    request.SetRequestHeader("Content-Type", "application/json");
+
+    yield return request.SendWebRequest();
+
+    if (request.result == UnityWebRequest.Result.Success)
+    {
+        Debug.Log("Успішно надіслано: " + request.downloadHandler.text);
+        onSuccess?.Invoke();
+    }
+    else
+    {
+        Debug.LogError("Помилка запиту: " + request.error);
+    }
+}
+
+   public void GetResults()
+{
+    if (gameManager != null && gameManager.currentState == GameState.WaitingForResults)
     {
         StartCoroutine(CheckUntilSuccess());
     }
-
+    else
+    {
+        Debug.LogWarning("Спроба отримати результати до відправки даних або в неправильному стані гри");
+    }
+}
     IEnumerator CheckUntilSuccess()
     {
         bool success = false;
