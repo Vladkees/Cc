@@ -15,7 +15,8 @@ public class ServerConnector : MonoBehaviour
     public Dictionary<string, int> playerScores = new Dictionary<string, int>();
     public GameManager gameManager;
     public ScoreDisplay scoreDisplay;
-
+private DroneDistributionData lastMove;
+private bool moveSent = false;
     public void RegisterPlayer(string username, Action<bool> onComplete)
     {
         StartCoroutine(RegisterCoroutine(username, onComplete));
@@ -188,7 +189,12 @@ public class ServerConnector : MonoBehaviour
             yield return new WaitForSeconds(1f);
         }
     }
-
+private IEnumerator SendMoveThenGetResults()
+{
+    yield return PostJsonRequest(move, JsonUtility.ToJson(lastMove));
+    moveSent = true;
+    yield return CheckUntilSuccess();
+}
  public void SendDroneDistribution(int playerId, int kronus, int lyrion, int mystara, int eclipsia, int fiora)
 {
     lastMove = new DroneDistributionData
@@ -200,7 +206,7 @@ public class ServerConnector : MonoBehaviour
         eclipsia = eclipsia,
         fiora = fiora
     };
-
+ 
     moveSent = false; // спробуємо відправити
     StartCoroutine(SendMoveThenGetResults());
 }
