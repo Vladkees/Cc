@@ -15,8 +15,7 @@ public class ServerConnector : MonoBehaviour
     public Dictionary<string, int> playerScores = new Dictionary<string, int>();
     public GameManager gameManager;
     public ScoreDisplay scoreDisplay;
-private DroneDistributionData lastMove;
-private bool moveSent = false;
+
     public void RegisterPlayer(string username, Action<bool> onComplete)
     {
         StartCoroutine(RegisterCoroutine(username, onComplete));
@@ -189,28 +188,23 @@ private bool moveSent = false;
             yield return new WaitForSeconds(1f);
         }
     }
-private IEnumerator SendMoveThenGetResults()
-{
-    yield return PostJsonRequest(move, JsonUtility.ToJson(lastMove));
-    moveSent = true;
-    yield return CheckUntilSuccess();
-}
- public void SendDroneDistribution(int playerId, int kronus, int lyrion, int mystara, int eclipsia, int fiora)
-{
-    lastMove = new DroneDistributionData
-    {
-        player_id = playerId,
-        kronus = kronus,
-        lyrion = lyrion,
-        mystara = mystara,
-        eclipsia = eclipsia,
-        fiora = fiora
-    };
- 
-    moveSent = false; // спробуємо відправити
-    StartCoroutine(SendMoveThenGetResults());
-}
 
+    public void SendDroneDistribution(int playerId, int kronus, int lyrion, int mystara, int eclipsia, int fiora)
+    {
+        DroneDistributionData data = new DroneDistributionData
+        {
+            player_id = playerId,
+            kronus = kronus,
+            lyrion = lyrion,
+            mystara = mystara,
+            eclipsia = eclipsia,
+            fiora = fiora
+        };
+
+        string json = JsonUtility.ToJson(data);
+        Debug.Log("JSON що надсилається: " + json);
+        StartCoroutine(PostJsonRequest(move, json));
+    }
 
     private IEnumerator PostJsonRequest(string url, string json)
     {
@@ -238,43 +232,37 @@ private IEnumerator SendMoveThenGetResults()
         StartCoroutine(CheckUntilSuccess());
     }
 
-   IEnumerator CheckUntilSuccess()
-{
-    bool success = false;
-
-    while (!success)
+    IEnumerator CheckUntilSuccess()
     {
-        if (!moveSent && lastMove != null)
+        bool success = false;
+
+        while (!success)
         {
-            Debug.Log("Повторна спроба надіслати хід...");
-            yield return PostJsonRequest(move, JsonUtility.ToJson(lastMove));
-            moveSent = true;
-        }
+            UnityWebRequest request = UnityWebRequest.Get(results);
+            yield return request.SendWebRequest();
 
-        UnityWebRequest request = UnityWebRequest.Get(results);
-        yield return request.SendWebRequest();
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                Debug.LogError("Помилка запиту: " + request.error);
+                yield return new WaitForSeconds(1f);
+                continue;
+            }
 
-        if (request.result != UnityWebRequest.Result.Success)
-        {
-            Debug.LogError("Помилка запиту: " + request.error);
-            yield return new WaitForSeconds(1f);
-            continue;
-        }
+            string json = request.downloadHandler.text;
 
-        string json = request.downloadHandler.text;
-        Debug.Log("Отриманий JSON: " + json);
+            // Спроба розпарсити, навіть якщо success == false
+            Debug.Log("Отриманий JSON: " + json);
+            RoundResponseWrapper wrapper = JsonUtility.FromJson<RoundResponseWrapper>("{\"wrapper\":" + json + "}");
+            RoundResponse response = wrapper.wrapper;
 
-        RoundResponseWrapper wrapper = JsonUtility.FromJson<RoundResponseWrapper>("{\"wrapper\":" + json + "}");
-        RoundResponse response = wrapper.wrapper;
+            success = response.success;
 
-        success = response.success;
-
-        if (!success)
-        {
-            Debug.Log("Очікуємо завершення раунду... Спроба ще через 1 секунду");
-            yield return new WaitForSeconds(1f);
-            continue;
-        }
+            if (!success)
+            {
+                Debug.Log("Очікуємо завершення раунду... Спроба ще через 1 секунду");
+                yield return new WaitForSeconds(1f);
+                continue;
+            }
 
             // Якщо success == true: обробити результати
             Debug.Log("Раунд завершено. Отримуємо результати...");
