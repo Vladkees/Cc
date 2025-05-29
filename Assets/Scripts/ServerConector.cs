@@ -10,13 +10,17 @@ public class ServerConnector : MonoBehaviour
     private string lobby = "https://0eb8-93-170-117-28.ngrok-free.app/game_server/start_game.php";
     private string move = "https://0eb8-93-170-117-28.ngrok-free.app/game_server/submit_move.php";
     private string results = "https://0eb8-93-170-117-28.ngrok-free.app/game_server/get_results.php";
-
+private bool hasSentMoveForRound = false;
+private int currentRound = 0;
+public void NewRoundStarted(int roundNumber)
+{
+    currentRound = roundNumber;
+    hasSentMoveForRound = false;
+}
     public int ID;
     public Dictionary<string, int> playerScores = new Dictionary<string, int>();
     public GameManager gameManager;
     public ScoreDisplay scoreDisplay;
-
-    private bool moveSubmitted = false;
 
     public void RegisterPlayer(string username, Action<bool> onComplete)
     {
@@ -40,6 +44,7 @@ public class ServerConnector : MonoBehaviour
             string responseText = request.downloadHandler.text;
             Debug.Log("Відповідь сервера: " + responseText);
 
+            // Парсимо поле error
             ErrorResponse errorResponse = JsonUtility.FromJson<ErrorResponse>(responseText);
 
             if (!string.IsNullOrEmpty(errorResponse.error))
@@ -49,6 +54,7 @@ public class ServerConnector : MonoBehaviour
             }
             else
             {
+                // 🔍 Знаходимо player_id за допомогою регулярного виразу
                 System.Text.RegularExpressions.Match match = System.Text.RegularExpressions.Regex.Match(responseText, "\"player_id\"\\s*:\\s*(\\d+)");
                 if (match.Success)
                 {
@@ -73,6 +79,7 @@ public class ServerConnector : MonoBehaviour
         }
     }
 
+
     public void CheckStatus()
     {
         StartCoroutine(GetStatusCoroutine());
@@ -89,12 +96,14 @@ public class ServerConnector : MonoBehaviour
                 string json = request.downloadHandler.text;
                 Debug.Log("Відповідь сервера: " + json);
 
+                // Розбираємо JSON
                 GameStatusResponse response = JsonUtility.FromJson<GameStatusResponse>(json);
 
                 if (response != null)
                 {
                     Debug.Log("Status: " + response.status);
 
+                    // Тут можна щось робити з цим статусом, наприклад:
                     if (response.status == "waiting")
                     {
                         Debug.Log("Гра ще не почалася");
@@ -186,26 +195,31 @@ public class ServerConnector : MonoBehaviour
         }
     }
 
-    public void SendDroneDistribution(int playerId, int kronus, int lyrion, int mystara, int eclipsia, int fiora)
+   public void SendDroneDistribution(int playerId, int kronus, int lyrion, int mystara, int eclipsia, int fiora)
+{
+    if (hasSentMoveForRound)
     {
-        DroneDistributionData data = new DroneDistributionData
-        {
-            player_id = playerId,
-            kronus = kronus,
-            lyrion = lyrion,
-            mystara = mystara,
-            eclipsia = eclipsia,
-            fiora = fiora
-        };
-
-        string json = JsonUtility.ToJson(data);
-        Debug.Log("JSON що надсилається: " + json);
-        StartCoroutine(PostJsonRequest(move, json, () => {
-            moveSubmitted = true;
-        }));
+        Debug.LogWarning("Хід вже було надіслано для цього раунду.");
+        return;
     }
 
-    private IEnumerator PostJsonRequest(string url, string json, Action onSuccess = null)
+    DroneDistributionData data = new DroneDistributionData
+    {
+        player_id = playerId,
+        kronus = kronus,
+        lyrion = lyrion,
+        mystara = mystara,
+        eclipsia = eclipsia,
+        fiora = fiora
+    };
+
+    string json = JsonUtility.ToJson(data);
+    Debug.Log("JSON що надсилається: " + json);
+    hasSentMoveForRound = true;
+    StartCoroutine(PostJsonRequest(move, json));
+}
+
+    private IEnumerator PostJsonRequest(string url, string json)
     {
         UnityWebRequest request = new UnityWebRequest(url, "POST");
         byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(json);
@@ -219,7 +233,6 @@ public class ServerConnector : MonoBehaviour
         if (request.result == UnityWebRequest.Result.Success)
         {
             Debug.Log("Успішно надіслано: " + request.downloadHandler.text);
-            onSuccess?.Invoke();
         }
         else
         {
@@ -229,14 +242,7 @@ public class ServerConnector : MonoBehaviour
 
     public void GetResults()
     {
-        if (moveSubmitted)
-        {
-            StartCoroutine(CheckUntilSuccess());
-        }
-        else
-        {
-            Debug.LogWarning("Спочатку потрібно відправити дані про дрони");
-        }
+        StartCoroutine(CheckUntilSuccess());
     }
 
     IEnumerator CheckUntilSuccess()
@@ -256,6 +262,8 @@ public class ServerConnector : MonoBehaviour
             }
 
             string json = request.downloadHandler.text;
+
+            // Спроба розпарсити, навіть якщо success == false
             Debug.Log("Отриманий JSON: " + json);
             RoundResponseWrapper wrapper = JsonUtility.FromJson<RoundResponseWrapper>("{\"wrapper\":" + json + "}");
             RoundResponse response = wrapper.wrapper;
@@ -269,6 +277,7 @@ public class ServerConnector : MonoBehaviour
                 continue;
             }
 
+            // Якщо success == true: обробити результати
             Debug.Log("Раунд завершено. Отримуємо результати...");
 
             playerScores.Clear();
@@ -293,7 +302,6 @@ public class ServerConnector : MonoBehaviour
             else
             {
                 gameManager.SetState(GameState.RoundInProgress);
-                moveSubmitted = false; // Скидаємо після отримання результатів
             }
         }
     }
@@ -314,7 +322,7 @@ public class ServerConnector : MonoBehaviour
     public class GameStatusResponse
     {
         public string status;
-        public int? time_left;
+        public int? time_left; // nullable, бо іноді його немає
         public string message;
     }
 
