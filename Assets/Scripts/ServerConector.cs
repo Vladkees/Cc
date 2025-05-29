@@ -239,75 +239,73 @@ public class ServerConnector : MonoBehaviour
         StartCoroutine(CheckUntilSuccess());
     }
 
-    IEnumerator CheckUntilSuccess()
+   IEnumerator CheckUntilSuccess()
+{
+    bool success = false;
+
+    while (!success)
     {
-        bool success = false;
+        UnityWebRequest request = UnityWebRequest.Get(results);
+        yield return request.SendWebRequest();
 
-        while (!success)
+        if (request.result != UnityWebRequest.Result.Success)
         {
-            UnityWebRequest request = UnityWebRequest.Get(results);
+            Debug.LogError($"[{ID}] Помилка запиту: {request.error}");
+            yield return new WaitForSeconds(1f);
+            continue;
+        }
 
-            yield return request.SendWebRequest();
+        string json = request.downloadHandler.text;
+        Debug.Log($"[{ID}] Отриманий JSON: {json}");
 
-            if (request.result != UnityWebRequest.Result.Success)
-            {
-                Debug.LogError("Помилка запиту: " + request.error);
-                yield return new WaitForSeconds(1f);
-                continue;
-            }
+        RoundResponse response = null;
+        bool parseSuccess = false;
 
-            string json = request.downloadHandler.text;
-            Debug.Log("Отриманий JSON: " + json);
+        try
+        {
+            // Пробуємо розпарсити JSON через Newtonsoft.Json (рекомендовано)
+            response = Newtonsoft.Json.JsonConvert.DeserializeObject<RoundResponse>(json);
+            parseSuccess = true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[{ID}] Помилка парсингу JSON: {ex.Message}");
+        }
 
-            RoundResponse response = null;
+        if (!parseSuccess)
+        {
+            Debug.LogWarning($"[{ID}] Парсинг не вдався, повтор через 1 секунду...");
+            yield return new WaitForSeconds(1f);
+            continue;
+        }
 
-           bool waitAfterCatch = false;
-try
-{
-    response = JsonConvert.DeserializeObject<RoundResponse>(json);
-}
-catch (Exception ex)
-{
-    Debug.LogError("Помилка парсингу JSON: " + ex.Message);
-    waitAfterCatch = true;
-}
+        // Логування отриманих даних для діагностики
+        Debug.Log($"[{ID}] success: {response.success}, round_completed: {response.round_completed}, round: {response.round}");
 
-if (waitAfterCatch)
-{
-    yield return new WaitForSeconds(1f);
-    continue;
-}
+        if (!response.success)
+        {
+            Debug.Log($"[{ID}] Раунд ще не завершено, очікуємо...");
+            yield return new WaitForSeconds(1f);
+            continue;
+        }
 
-
-            if (response == null)
-            {
-                Debug.LogError("Отримано пусту відповідь");
-                yield return new WaitForSeconds(1f);
-                continue;
-            }
-
-            success = response.success;
-
-            if (!success)
-            {
-                Debug.Log("Очікуємо завершення раунду... Спроба ще через 1 секунду");
-                yield return new WaitForSeconds(1f);
-                continue;
-            }
-
-            // Якщо success == true: обробити результати
-            Debug.Log("Раунд завершено. Отримуємо результати...");
+        // Якщо раунд завершено, оновлюємо рахунки та стан гри
+        if (response.round_completed)
+        {
+            Debug.Log($"[{ID}] Раунд {response.round} завершено. Обробка результатів...");
 
             playerScores.Clear();
             foreach (ResultEntry entry in response.results)
             {
                 playerScores[entry.username] = entry.total_score;
+                Debug.Log($"[{ID}] Гравець {entry.username}: total_score = {entry.total_score}");
             }
 
             scoreDisplay.UpdateScoreText(playerScores);
 
             if (response.round > 4)
             {
+                Debug.Log($"[{ID}] Гра завершена.");
                 gameManager.SetState(GameState.GameOver);
                 Vector3 pos = scoreDisplay.transform.position;
                 pos.x = 0f;
@@ -315,10 +313,20 @@ if (waitAfterCatch)
             }
             else
             {
+                Debug.Log($"[{ID}] Переходимо до наступного раунду {response.round + 1}.");
                 gameManager.SetState(GameState.RoundInProgress);
             }
+
+            success = true;
+        }
+        else
+        {
+            Debug.Log($"[{ID}] Раунд не завершено, чекаємо...");
+            yield return new WaitForSeconds(1f);
         }
     }
+}
+
 
     // Класи для JSON
     [Serializable]
