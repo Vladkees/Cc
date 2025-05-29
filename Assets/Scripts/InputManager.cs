@@ -43,7 +43,7 @@ public class DroneInputManager : MonoBehaviour
         }
 
         errorText.text = "";
-        dronesLeftText.text = $"Drones left: {maxDrones - sum}";
+        dronesLeftText.text = $"Дронів залишилось: {maxDrones - sum}";
 
         int k = ParseInputSafe(inputKronus?.text);
         int l = ParseInputSafe(inputLyrion?.text);
