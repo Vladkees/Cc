@@ -189,22 +189,22 @@ public class ServerConnector : MonoBehaviour
         }
     }
 
-    public void SendDroneDistribution(int playerId, int kronus, int lyrion, int mystara, int eclipsia, int fiora)
+ public void SendDroneDistribution(int playerId, int kronus, int lyrion, int mystara, int eclipsia, int fiora)
+{
+    lastMove = new DroneDistributionData
     {
-        DroneDistributionData data = new DroneDistributionData
-        {
-            player_id = playerId,
-            kronus = kronus,
-            lyrion = lyrion,
-            mystara = mystara,
-            eclipsia = eclipsia,
-            fiora = fiora
-        };
+        player_id = playerId,
+        kronus = kronus,
+        lyrion = lyrion,
+        mystara = mystara,
+        eclipsia = eclipsia,
+        fiora = fiora
+    };
 
-        string json = JsonUtility.ToJson(data);
-        Debug.Log("JSON що надсилається: " + json);
-        StartCoroutine(PostJsonRequest(move, json));
-    }
+    moveSent = false; // спробуємо відправити
+    StartCoroutine(SendMoveThenGetResults());
+}
+
 
     private IEnumerator PostJsonRequest(string url, string json)
     {
@@ -232,37 +232,43 @@ public class ServerConnector : MonoBehaviour
         StartCoroutine(CheckUntilSuccess());
     }
 
-    IEnumerator CheckUntilSuccess()
+   IEnumerator CheckUntilSuccess()
+{
+    bool success = false;
+
+    while (!success)
     {
-        bool success = false;
-
-        while (!success)
+        if (!moveSent && lastMove != null)
         {
-            UnityWebRequest request = UnityWebRequest.Get(results);
-            yield return request.SendWebRequest();
+            Debug.Log("Повторна спроба надіслати хід...");
+            yield return PostJsonRequest(move, JsonUtility.ToJson(lastMove));
+            moveSent = true;
+        }
 
-            if (request.result != UnityWebRequest.Result.Success)
-            {
-                Debug.LogError("Помилка запиту: " + request.error);
-                yield return new WaitForSeconds(1f);
-                continue;
-            }
+        UnityWebRequest request = UnityWebRequest.Get(results);
+        yield return request.SendWebRequest();
 
-            string json = request.downloadHandler.text;
+        if (request.result != UnityWebRequest.Result.Success)
+        {
+            Debug.LogError("Помилка запиту: " + request.error);
+            yield return new WaitForSeconds(1f);
+            continue;
+        }
 
-            // Спроба розпарсити, навіть якщо success == false
-            Debug.Log("Отриманий JSON: " + json);
-            RoundResponseWrapper wrapper = JsonUtility.FromJson<RoundResponseWrapper>("{\"wrapper\":" + json + "}");
-            RoundResponse response = wrapper.wrapper;
+        string json = request.downloadHandler.text;
+        Debug.Log("Отриманий JSON: " + json);
 
-            success = response.success;
+        RoundResponseWrapper wrapper = JsonUtility.FromJson<RoundResponseWrapper>("{\"wrapper\":" + json + "}");
+        RoundResponse response = wrapper.wrapper;
 
-            if (!success)
-            {
-                Debug.Log("Очікуємо завершення раунду... Спроба ще через 1 секунду");
-                yield return new WaitForSeconds(1f);
-                continue;
-            }
+        success = response.success;
+
+        if (!success)
+        {
+            Debug.Log("Очікуємо завершення раунду... Спроба ще через 1 секунду");
+            yield return new WaitForSeconds(1f);
+            continue;
+        }
 
             // Якщо success == true: обробити результати
             Debug.Log("Раунд завершено. Отримуємо результати...");
