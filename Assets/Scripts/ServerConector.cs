@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Networking;
+using Newtonsoft.Json;
 
 public class ServerConnector : MonoBehaviour
 {
@@ -23,7 +24,7 @@ public class ServerConnector : MonoBehaviour
 
     private IEnumerator RegisterCoroutine(string username, Action<bool> onComplete)
     {
-        string jsonData = JsonUtility.ToJson(new PlayerData { username = username });
+        string jsonData = JsonConvert.SerializeObject(new PlayerData { username = username });
         byte[] postData = System.Text.Encoding.UTF8.GetBytes(jsonData);
 
         UnityWebRequest request = new UnityWebRequest(register, "POST");
@@ -38,32 +39,39 @@ public class ServerConnector : MonoBehaviour
             string responseText = request.downloadHandler.text;
             Debug.Log("Відповідь сервера: " + responseText);
 
-            // Парсимо поле error
-            ErrorResponse errorResponse = JsonUtility.FromJson<ErrorResponse>(responseText);
+            try
+            {
+                var errorResponse = JsonConvert.DeserializeObject<ErrorResponse>(responseText);
 
-            if (!string.IsNullOrEmpty(errorResponse.error))
-            {
-                Debug.LogError("Помилка від сервера: " + errorResponse.error);
-                onComplete?.Invoke(false);
-            }
-            else
-            {
-                // 🔍 Знаходимо player_id за допомогою регулярного виразу
-                System.Text.RegularExpressions.Match match = System.Text.RegularExpressions.Regex.Match(responseText, "\"player_id\"\\s*:\\s*(\\d+)");
-                if (match.Success)
+                if (!string.IsNullOrEmpty(errorResponse.error))
                 {
-                    int playerId = int.Parse(match.Groups[1].Value);
-                    PlayerPrefs.SetInt("player_id", playerId);
-                    PlayerPrefs.Save();
-
-                    ID = playerId;
-                    onComplete?.Invoke(true);
+                    Debug.LogError("Помилка від сервера: " + errorResponse.error);
+                    onComplete?.Invoke(false);
                 }
                 else
                 {
-                    Debug.LogError("player_id не знайдено у відповіді.");
-                    onComplete?.Invoke(false);
+                    // Шукаємо player_id у відповіді, припускаємо, що він є
+                    var jsonObj = JsonConvert.DeserializeObject<Dictionary<string, object>>(responseText);
+                    if (jsonObj != null && jsonObj.ContainsKey("player_id"))
+                    {
+                        int playerId = Convert.ToInt32(jsonObj["player_id"]);
+                        PlayerPrefs.SetInt("player_id", playerId);
+                        PlayerPrefs.Save();
+
+                        ID = playerId;
+                        onComplete?.Invoke(true);
+                    }
+                    else
+                    {
+                        Debug.LogError("player_id не знайдено у відповіді.");
+                        onComplete?.Invoke(false);
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError("Помилка парсингу JSON: " + ex.Message);
+                onComplete?.Invoke(false);
             }
         }
         else
@@ -72,7 +80,6 @@ public class ServerConnector : MonoBehaviour
             onComplete?.Invoke(false);
         }
     }
-
 
     public void CheckStatus()
     {
@@ -90,26 +97,31 @@ public class ServerConnector : MonoBehaviour
                 string json = request.downloadHandler.text;
                 Debug.Log("Відповідь сервера: " + json);
 
-                // Розбираємо JSON
-                GameStatusResponse response = JsonUtility.FromJson<GameStatusResponse>(json);
-
-                if (response != null)
+                try
                 {
-                    Debug.Log("Status: " + response.status);
+                    var response = JsonConvert.DeserializeObject<GameStatusResponse>(json);
 
-                    // Тут можна щось робити з цим статусом, наприклад:
-                    if (response.status == "waiting")
+                    if (response != null)
                     {
-                        Debug.Log("Гра ще не почалася");
+                        Debug.Log("Status: " + response.status);
+
+                        if (response.status == "waiting")
+                        {
+                            Debug.Log("Гра ще не почалася");
+                        }
+                        else if (response.status == "started")
+                        {
+                            Debug.Log("Гра почалася");
+                        }
                     }
-                    else if (response.status == "started")
+                    else
                     {
-                        Debug.Log("Гра почалася");
+                        Debug.LogError("Не вдалося розпарсити JSON");
                     }
                 }
-                else
+                catch (Exception ex)
                 {
-                    Debug.LogError("Не вдалося розпарсити JSON");
+                    Debug.LogError("Помилка парсингу JSON: " + ex.Message);
                 }
             }
             else
@@ -143,44 +155,37 @@ public class ServerConnector : MonoBehaviour
                     string json = www.downloadHandler.text;
                     Debug.Log("CheckGameStatusLoop JSON: " + json);
 
-                    GameStatusResponse response = null;
-                    bool parseSuccess = false;
-
                     try
                     {
-                        response = JsonUtility.FromJson<GameStatusResponse>(json);
-                        parseSuccess = true;
+                        var response = JsonConvert.DeserializeObject<GameStatusResponse>(json);
+
+                        if (response != null)
+                        {
+                            if (!string.IsNullOrEmpty(response.message))
+                            {
+                                gameManager.messageText.text = response.message;
+                            }
+
+                            if (response.status == "waiting")
+                            {
+                                if (response.time_left.HasValue)
+                                    onTimeLeftUpdate?.Invoke(response.time_left.Value);
+                            }
+                            else if (response.status == "started")
+                            {
+                                Debug.Log("Гра почалася!");
+                                onGameStarted?.Invoke();
+                                yield break;
+                            }
+                            else
+                            {
+                                Debug.LogWarning("Невідомий статус гри: " + response.status);
+                            }
+                        }
                     }
                     catch (Exception ex)
                     {
                         Debug.LogError("Помилка парсингу JSON: " + ex.Message);
-                    }
-
-                    if (!string.IsNullOrEmpty(response.message))
-                    {
-                        gameManager.messageText.text = response.message;
-                    }
-
-                    if (!parseSuccess)
-                    {
-                        yield return new WaitForSeconds(1f);
-                        continue;
-                    }
-
-                    if (response.status == "waiting")
-                    {
-                        if (response.time_left.HasValue)
-                            onTimeLeftUpdate?.Invoke(response.time_left.Value);
-                    }
-                    else if (response.status == "started")
-                    {
-                        Debug.Log("Гра почалася!");
-                        onGameStarted?.Invoke();
-                        yield break;
-                    }
-                    else
-                    {
-                        Debug.LogWarning("Невідомий статус гри: " + response.status);
                     }
                 }
             }
@@ -201,7 +206,7 @@ public class ServerConnector : MonoBehaviour
             fiora = fiora
         };
 
-        string json = JsonUtility.ToJson(data);
+        string json = JsonConvert.SerializeObject(data);
         Debug.Log("JSON що надсилається: " + json);
         StartCoroutine(PostJsonRequest(move, json));
     }
@@ -238,60 +243,77 @@ public class ServerConnector : MonoBehaviour
 
         while (!success)
         {
-            UnityWebRequest request = UnityWebRequest.Get(results);
-            yield return request.SendWebRequest();
-
-            if (request.result != UnityWebRequest.Result.Success)
+            using (UnityWebRequest request = UnityWebRequest.Get(results))
             {
-                Debug.LogError("Помилка запиту: " + request.error);
-                yield return new WaitForSeconds(1f);
-                continue;
-            }
+                yield return request.SendWebRequest();
 
-            string json = request.downloadHandler.text;
+                if (request.result != UnityWebRequest.Result.Success)
+                {
+                    Debug.LogError("Помилка запиту: " + request.error);
+                    yield return new WaitForSeconds(1f);
+                    continue;
+                }
 
-            // Спроба розпарсити, навіть якщо success == false
-            Debug.Log("Отриманий JSON: " + json);
-            RoundResponseWrapper wrapper = JsonUtility.FromJson<RoundResponseWrapper>("{\"wrapper\":" + json + "}");
-            RoundResponse response = wrapper.wrapper;
+                string json = request.downloadHandler.text;
 
-            success = response.success;
+                Debug.Log("Отриманий JSON: " + json);
 
-            if (!success)
-            {
-                Debug.Log("Очікуємо завершення раунду... Спроба ще через 1 секунду");
-                yield return new WaitForSeconds(1f);
-                continue;
-            }
+                try
+                {
+                    RoundResponse response = JsonConvert.DeserializeObject<RoundResponse>(json);
 
-            // Якщо success == true: обробити результати
-            Debug.Log("Раунд завершено. Отримуємо результати...");
+                    if (response == null)
+                    {
+                        Debug.LogError("Не вдалося розпарсити RoundResponse");
+                        yield return new WaitForSeconds(1f);
+                        continue;
+                    }
 
-            playerScores.Clear();
-            foreach (ResultEntry entry in response.results)
-            {
-                playerScores[entry.username] = entry.total_score;
-            }
+                    success = response.success;
 
-            foreach (var kvp in playerScores)
-            {
-                Debug.Log($"Гравець {kvp.Key} має рахунок {kvp.Value}");
-            }
+                    if (!success)
+                    {
+                        Debug.Log("Очікуємо завершення раунду... Спроба ще через 1 секунду");
+                        yield return new WaitForSeconds(1f);
+                        continue;
+                    }
 
-            scoreDisplay.UpdateScoreText(playerScores);
-            if (response.round > 4)
-            {
-                gameManager.SetState(GameState.GameOver);
-                Vector3 pos = scoreDisplay.transform.position;
-                pos.x = 0f;
-                scoreDisplay.transform.position = pos;
-            }
-            else
-            {
-                gameManager.SetState(GameState.RoundInProgress);
+                    Debug.Log("Раунд завершено. Отримуємо результати...");
+
+                    playerScores.Clear();
+                    foreach (ResultEntry entry in response.results)
+                    {
+                        playerScores[entry.username] = entry.total_score;
+                    }
+
+                    foreach (var kvp in playerScores)
+                    {
+                        Debug.Log($"Гравець {kvp.Key} має рахунок {kvp.Value}");
+                    }
+
+                    scoreDisplay.UpdateScoreText(playerScores);
+                    if (response.round > 4)
+                    {
+                        gameManager.SetState(GameState.GameOver);
+                        Vector3 pos = scoreDisplay.transform.position;
+                        pos.x = 0f;
+                        scoreDisplay.transform.position = pos;
+                    }
+                    else
+                    {
+                        gameManager.SetState(GameState.RoundInProgress);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError("Помилка парсингу JSON: " + ex.Message);
+                    yield return new WaitForSeconds(1f);
+                }
             }
         }
     }
+
+    // Класи для десеріалізації
 
     [Serializable]
     private class ErrorResponse
@@ -299,7 +321,7 @@ public class ServerConnector : MonoBehaviour
         public string error;
     }
 
-    [System.Serializable]
+    [Serializable]
     public class PlayerData
     {
         public string username;
@@ -313,17 +335,7 @@ public class ServerConnector : MonoBehaviour
         public string message;
     }
 
-    [System.Serializable]
-    public class DroneData
-    {
-        public int Kronus;
-        public int Lyrion;
-        public int Mystara;
-        public int Eclipsia;
-        public int Fiora;
-    }
-
-    [System.Serializable]
+    [Serializable]
     public class DroneDistributionData
     {
         public int player_id;
@@ -332,12 +344,6 @@ public class ServerConnector : MonoBehaviour
         public int mystara;
         public int eclipsia;
         public int fiora;
-    }
-
-    [Serializable]
-    public class RoundResponseWrapper
-    {
-        public RoundResponse wrapper;
     }
 
     [Serializable]
