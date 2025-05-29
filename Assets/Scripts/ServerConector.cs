@@ -10,13 +10,7 @@ public class ServerConnector : MonoBehaviour
     private string lobby = "https://0eb8-93-170-117-28.ngrok-free.app/game_server/start_game.php";
     private string move = "https://0eb8-93-170-117-28.ngrok-free.app/game_server/submit_move.php";
     private string results = "https://0eb8-93-170-117-28.ngrok-free.app/game_server/get_results.php";
-private bool hasSentMoveForRound = false;
-private int currentRound = 0;
-public void NewRoundStarted(int roundNumber)
-{
-    currentRound = roundNumber;
-    hasSentMoveForRound = false;
-}
+
     public int ID;
     public Dictionary<string, int> playerScores = new Dictionary<string, int>();
     public GameManager gameManager;
@@ -195,29 +189,22 @@ public void NewRoundStarted(int roundNumber)
         }
     }
 
-   public void SendDroneDistribution(int playerId, int kronus, int lyrion, int mystara, int eclipsia, int fiora)
-{
-    if (hasSentMoveForRound)
+    public void SendDroneDistribution(int playerId, int kronus, int lyrion, int mystara, int eclipsia, int fiora)
     {
-        Debug.LogWarning("Хід вже було надіслано для цього раунду.");
-        return;
+        DroneDistributionData data = new DroneDistributionData
+        {
+            player_id = playerId,
+            kronus = kronus,
+            lyrion = lyrion,
+            mystara = mystara,
+            eclipsia = eclipsia,
+            fiora = fiora
+        };
+
+        string json = JsonUtility.ToJson(data);
+        Debug.Log("JSON що надсилається: " + json);
+        StartCoroutine(PostJsonRequest(move, json));
     }
-
-    DroneDistributionData data = new DroneDistributionData
-    {
-        player_id = playerId,
-        kronus = kronus,
-        lyrion = lyrion,
-        mystara = mystara,
-        eclipsia = eclipsia,
-        fiora = fiora
-    };
-
-    string json = JsonUtility.ToJson(data);
-    Debug.Log("JSON що надсилається: " + json);
-    hasSentMoveForRound = true;
-    StartCoroutine(PostJsonRequest(move, json));
-}
 
     private IEnumerator PostJsonRequest(string url, string json)
     {
