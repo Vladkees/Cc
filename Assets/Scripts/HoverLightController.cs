@@ -11,7 +11,7 @@ public class HoverLightController : MonoBehaviour
     private bool hovering = false;
     private Vector3 targetPosition;
 
-    private const float threshold = 0.01f; // Для перевірки стабільності інтенсивності/позиції
+    private const float threshold = 0.01f; 
 
     void Start()
     {

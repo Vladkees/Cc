@@ -7,10 +7,10 @@ using Newtonsoft.Json;
 
 public class ServerConnector : MonoBehaviour
 {
-    private string register = "https://0eb8-93-170-117-28.ngrok-free.app/game_server/register.php";
-    private string lobby = "https://0eb8-93-170-117-28.ngrok-free.app/game_server/start_game.php";
-    private string move = "https://0eb8-93-170-117-28.ngrok-free.app/game_server/submit_move.php";
-    private string results = "https://0eb8-93-170-117-28.ngrok-free.app/game_server/get_results.php";
+    private string register = "https://ec85-93-170-117-28.ngrok-free.app/game_server/register.php";
+    private string lobby = "https://ec85-93-170-117-28.ngrok-free.app/game_server/start_game.php";
+    private string move = "https://ec85-93-170-117-28.ngrok-free.app/game_server/submit_move.php";
+    private string results = "https://ec85-93-170-117-28.ngrok-free.app/game_server/get_results.php";
 
     public int ID;
     public Dictionary<string, int> playerScores = new Dictionary<string, int>();
@@ -263,7 +263,7 @@ public class ServerConnector : MonoBehaviour
 
         try
         {
-            // Пробуємо розпарсити JSON через Newtonsoft.Json (рекомендовано)
+            
             response = Newtonsoft.Json.JsonConvert.DeserializeObject<RoundResponse>(json);
             parseSuccess = true;
         }
@@ -279,7 +279,7 @@ public class ServerConnector : MonoBehaviour
             continue;
         }
 
-        // Логування отриманих даних для діагностики
+        
         Debug.Log($"[{ID}] success: {response.success}, round_completed: {response.round_completed}, round: {response.round}");
 
         if (!response.success)
@@ -289,7 +289,7 @@ public class ServerConnector : MonoBehaviour
             continue;
         }
 
-        // Якщо раунд завершено, оновлюємо рахунки та стан гри
+        
         if (response.round_completed)
         {
             Debug.Log($"[{ID}] Раунд {response.round} завершено. Обробка результатів...");
@@ -328,7 +328,7 @@ public class ServerConnector : MonoBehaviour
 }
 
 
-    // Класи для JSON
+    
     [Serializable]
     private class ErrorResponse
     {
@@ -351,7 +351,7 @@ public class ServerConnector : MonoBehaviour
     public class GameStatusResponse
     {
         public string status;
-        public int? time_left; // nullable, бо іноді його немає
+        public int? time_left; 
         public string message;
     }
 

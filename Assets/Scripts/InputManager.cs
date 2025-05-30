@@ -68,7 +68,7 @@ public class DroneInputManager : MonoBehaviour
         int eclipsia = ParseInputSafe(inputEclipsia?.text);
         int fiora = ParseInputSafe(inputFiora?.text);
 
-        // Перевірка спадання
+       
         if (!(kronus >= lyrion && lyrion >= mystara && mystara >= eclipsia && eclipsia >= fiora))
         {
             errorText.text = "Значення повинні спадати: Kronus ≥ Lyrion ≥ Mystara ≥ Eclipsia ≥ Fiora";

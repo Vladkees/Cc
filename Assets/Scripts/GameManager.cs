@@ -170,9 +170,8 @@ public class GameManager : MonoBehaviour
         for (int i = 0; i < 5; i++)
         {
             int rawValue = values[i];
-            int mappedValue = Mathf.Clamp(rawValue / 100 + 1, 0, 10); // 0–99 => 1, ..., 900–999 => 10
+            int mappedValue = Mathf.Clamp(rawValue / 100 + 1, 0, 10); 
 
-            // Спеціальний випадок: якщо rawValue == 0, mappedValue має бути 0
             if (rawValue == 0)
                 mappedValue = 0;
 
