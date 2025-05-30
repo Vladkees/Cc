@@ -10,14 +10,14 @@ public class DroneOrbitController : MonoBehaviour
     public float orbitHeight = 0.5f;
     public float orbitSpeed = 0.5f;
     public int activeDronesCount = 5;
-    public float maxOrbitAngleDegrees = 10f; // максимальне випадкове обертання орбіти
+    public float maxOrbitAngleDegrees = 10f; 
 
     private class DroneData
     {
         public GameObject obj;
         public float t;
         public int direction;
-        public float orbitAngleRad; // кут орбіти в радіанах
+        public float orbitAngleRad; 
     }
 
     private List<DroneData> drones = new();
@@ -46,13 +46,11 @@ public class DroneOrbitController : MonoBehaviour
 
     public void ActivateDrones(int count)
     {
-        // Деактивуємо всіх дронів
         foreach (var drone in drones)
         {
             drone.obj.SetActive(false);
         }
 
-        // Активуємо лише потрібну кількість
         for (int i = 0; i < Mathf.Min(count, drones.Count); i++)
         {
             drones[i].obj.SetActive(true);
@@ -89,23 +87,19 @@ public class DroneOrbitController : MonoBehaviour
                 drone.direction = 1;
             }
 
-            // Вираховуємо позицію
             float x = Mathf.Lerp(-orbitWidth, orbitWidth, drone.t);
             float y = Mathf.Sin(drone.t * Mathf.PI * 2f) * orbitHeight * 0.5f;
             Vector3 offset = new Vector3(x, y, 0);
 
-            // Обертаємо орбіту
             offset = Quaternion.Euler(0, 0, drone.orbitAngleRad * Mathf.Rad2Deg) * offset;
             drone.obj.transform.localPosition = offset;
 
-            // Визначаємо порядок рендеру
             SpriteRenderer sr = drone.obj.GetComponent<SpriteRenderer>();
             if (sr != null)
             {
                 sr.sortingOrder = drone.direction > 0 ? -1 : 1;
 
-                // Градієнт затінення: t від 0.5 (білий) до 1.0 (чорний)
-                float shadowT = Mathf.InverseLerp(0.5f, 1f, drone.t); // 0 (білий) -> 1 (чорний)
+                float shadowT = Mathf.InverseLerp(0.5f, 1f, drone.t); 
                 float brightness = Mathf.Lerp(1f, 0f, shadowT);
                 sr.color = new Color(brightness, brightness, brightness);
             }

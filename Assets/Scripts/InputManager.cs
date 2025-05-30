@@ -84,11 +84,9 @@ public class DroneInputManager : MonoBehaviour
             return;
         }
 
-        // Якщо все коректно — надсилаємо на сервер
         errorText.text = "";
         dronesLeftText.text = $"Дронів залишилось: {maxDrones - sum}";
 
-        // Тут викликаємо метод серверного з'єднання — наприклад:
         dronesSendButton.gameObject.SetActive(false);
         serverConnector.SendDroneDistribution(serverConnector.ID, kronus, lyrion, mystara, eclipsia, fiora);
         gameManager.SetState(GameState.ShowResults);
@@ -112,7 +110,6 @@ public class DroneInputManager : MonoBehaviour
         return 0;
     }
 
-    // Метод для безпечного парсингу
     int ParseInputSafe(string input)
     {
         if (string.IsNullOrEmpty(input))
@@ -121,6 +118,6 @@ public class DroneInputManager : MonoBehaviour
         if (int.TryParse(input, out int value))
             return value;
 
-        return 0; // якщо в тексті не число
+        return 0; 
     }
 }

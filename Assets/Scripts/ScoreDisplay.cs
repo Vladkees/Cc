@@ -15,6 +15,6 @@ public class ScoreDisplay : MonoBehaviour
             output += $"{entry.Key} - {entry.Value}\n";
         }
 
-        textDisplay.text = output; // 123124124
+        textDisplay.text = output; 
     }
 }
